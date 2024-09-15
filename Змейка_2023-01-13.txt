@@ -1,0 +1,484 @@
+#define _CRT_SECURE_NO_WARNINGS
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <conio.h>
+#include <iostream>
+#include <windows.h>
+#include <ctime>
+#include <GLFW/glfw3.h>
+#include <stb_easy_font.h>
+#include <string>
+#include <mmsystem.h>
+
+#pragma comment(lib, "winmm.lib")
+
+enum TDir { LEFT, UP, RIGHT, DOWN };
+const int width = 30;
+const int height = width;
+const int widthWin = 700;
+const int heightWin = widthWin;
+const int numberApple = 1;
+
+float offset = 0.0f;
+//char apple[numberApple]{};
+bool breakPlay = false;
+bool flag = false;
+bool flag1 = false;
+int quant = numberApple;
+char str[35];
+void PutApple(int quant);
+void ShowApple(char drawing);
+
+
+
+struct TSnk//map
+{
+    bool hd;
+    bool bd;
+};
+
+struct TCell  //слоёная клетка - map
+{
+    char sym;
+    bool brd;
+    TSnk snk;
+};
+
+TCell map[height][width];
+
+struct TCoord//snake
+{
+    int x;
+    int y;
+    char sym;// = 64;
+};
+
+struct TSnake//snake
+{
+    TCoord seg[height * width];
+    TDir dir;
+    int delay;
+    int lenght;
+    bool mouth = false;
+    //char code;
+    TSnake() { dir = RIGHT; seg[0] = { 5, 5 }; lenght = 1; delay = 100;}
+
+    void Move()
+    {
+        map[seg[0].y][seg[0].x].snk.hd = true;//карта.голова=истина
+
+        for (int i = 1; i < lenght; i++)
+        {
+            map[seg[i].y][seg[i].x].snk.bd = true;//карта.тело=истина
+            map[seg[i].y][seg[i].x].sym = seg[i].sym;//карта.буква=змея.буква
+        }
+        map[seg[lenght].y][seg[lenght].x].sym = 0;
+        map[seg[lenght].y][seg[lenght].x].snk.bd = false;
+        map[seg[1].y][seg[1].x].snk.hd = false;//карта.голова=ложь
+        for (int i = lenght; i > 0; i--)
+        {
+            seg[i].x = seg[i - 1].x;
+            seg[i].y = seg[i - 1].y;
+        }
+    }
+
+    void IsBreak()
+    {
+        if (map[seg[0].y][seg[0].x].snk.bd) breakPlay = true;
+    }
+
+    void AppleEat()
+    {
+        if (map[seg[0].y][seg[0].x].sym != 0)
+            if (map[seg[0].y][seg[0].x].sym == 64 + lenght)
+            {
+                //PlaySound("apple.wav", NULL, SND_ASYNC);
+                Sleep(5);
+                seg[lenght].sym = map[seg[0].y][seg[0].x].sym;
+                lenght++;
+                for (int j = 1; j < height - 1; j++)//очистка карты от яблок
+                    for (int i = 1; i < width - 1; i++)//очистка карты от яблок
+                        if (!map[j][i].snk.bd) map[j][i].sym = 0;//очистка карты от яблок
+                PutApple(quant);
+                //quant = rand() % 1 + 1;
+            }
+            else breakPlay = true;
+    }
+
+    void Control(char key_LEFT, char key_RIGHT, char key_DOWN, char key_UP)
+    {
+        int a, b;
+        a = seg[0].x;
+        b = seg[0].y;
+        if ((GetKeyState(VK_UP) & 0x80 || GetKeyState(key_UP) & 0x80) && !flag && dir != DOWN)
+        {
+            flag = true;
+            dir = UP;
+        }
+        if ((GetKeyState(VK_DOWN) & 0x80 || GetKeyState(key_DOWN) & 0x80) && !flag && dir != UP)
+        {
+            flag = true;
+            dir = DOWN;
+        }
+        if ((GetKeyState(VK_RIGHT) & 0x80 || (GetKeyState(key_RIGHT) & 0x80)) && !flag && dir != LEFT)
+        {
+            flag = true;
+            dir = RIGHT;
+        }
+        if ((GetKeyState(VK_LEFT) & 0x80 || GetKeyState(key_LEFT) & 0x80) && !flag && dir != RIGHT)
+        {
+            flag = true;
+            dir = LEFT;
+        }
+
+        if (dir == RIGHT) if (map[b][a + 1].brd) a = 1; else { a++; }
+        if (dir == LEFT) if (map[b][a - 1].brd) a = width - 2; else { a--; }
+        if (dir == UP) if (map[b + 1][a].brd) b = 1; else { b++; }
+        if (dir == DOWN) if (map[b - 1][a].brd) b = height - 2; else { b--; }
+
+        if (GetKeyState(VK_ESCAPE) < 0)  breakPlay = true;
+
+        seg[0].x = a;
+        seg[0].y = b;
+        mouth = (a + b) % 2;
+        flag = false;
+        Move();
+        IsBreak();
+        AppleEat();
+    }
+};
+
+TSnake snake;
+
+void print_string(float x, float y, char* text, float r, float g, float b)
+{
+    char buffer[99999]; // ~500 chars
+    int num_quads;
+
+    num_quads = stb_easy_font_print(x, y, text, NULL, buffer, sizeof(buffer));
+
+    glColor3f(r, g, b);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glVertexPointer(2, GL_FLOAT, 16, buffer);
+    glDrawArrays(GL_QUADS, 0, num_quads * 4);
+    glDisableClientState(GL_VERTEX_ARRAY);
+}
+
+bool Same(char code)
+{
+        for (int j = 1; j < height-1; j++)
+            for (int i = 1; i < width-1; i++)
+                if (map[j][i].sym == code)
+                    return true;
+        return false;
+}
+
+void Ascii()
+{
+
+}
+
+void PutApple(int quant)
+{
+    int ax, ay;
+    char code = 0;
+    bool same;
+    for (int i = 0; i < quant; i++)
+    {
+        do
+        {
+            ax = rand() % (width - 2) + 1;
+            ay = rand() % (height - 2) + 1;
+            if (snake.lenght - 1 < 25)
+                code = (rand() %  26) + 64; //A=65...Z=90
+
+//            code = rand() % (26 - snake.lenght) + 64 + snake.lenght; //A=65...Z=90
+            same = Same(code);
+        } while (map[ay][ax].sym || map[ay][ax].snk.hd || map[ay][ax].snk.bd || same);
+        //} while (map[ay][ax].sym.code != 0 || map[ay][ax].snk.hd || map[ay][ax].snk.bd && rep);
+
+        map[ay][ax].sym = code;
+        if (i == quant - 1) { ; map[ay][ax].sym = 64 + snake.lenght % 26; }
+        //        map[ay][ax].sym.correct = false; map[ay][ax].sym.correct = true
+        //ShowApple(65);
+    }
+}
+
+void Border()
+{
+    for (int j = 0; j < height; j++)
+    {
+        for (int i = 0; i < width; i++)
+            if (i == 0 || j == 0 || i == width - 1 || j == height - 1)
+            {
+                map[j][i].brd = true;
+            }
+    }
+}
+
+void SimSnake()
+{
+    for (int i = 0; i < snake.lenght; i++)
+    {
+        snake.seg[i].sym += i;
+    }
+}
+
+void Rotate(int Alfa)
+{
+    glTranslatef(0.5f, 0.5f, 0.0f);
+    glRotatef(Alfa, 0.0f, 0.0f, 1.0f);
+    glTranslatef(-0.5f, -0.5f, 0.0f);
+}
+
+void ShowHeader()
+{
+    int dir;
+    const float gap = 0;//0-0.5 - зазор
+    float x, y;
+    float step = (2 * M_PI / 16);//шаг и ширина открытия рта
+
+    if (snake.dir == RIGHT)  dir = 0;//0,1,2,3 - направление
+    if (snake.dir == UP)  dir = 1;//0,1,2,3 - направление
+    if (snake.dir == LEFT)  dir = 2;//0,1,2,3 - направление
+    if (snake.dir == DOWN)  dir = 3;//0,1,2,3 - направление
+
+    Rotate(dir * 90);//поворот головы
+    glTranslatef(offset, 0.0f, 0.0f);//смещение
+    glBegin(GL_POLYGON);
+    glColor3f(0, 0.8, 0.2);
+    if (snake.mouth) glVertex2f(0.4, 0.5);
+    for (double i = step; i < 2 * M_PI; i += step)
+    {
+        x = cos(i) * 0.5 * (1 - gap * 2) + 0.5;
+        y = sin(i) * 0.5 * (1 - gap * 2) + 0.5;
+        glVertex2f(x, y);
+    }
+    if (snake.mouth) glVertex2f(0.4, 0.5);
+    glEnd();
+}
+
+void ShowHeader0()
+{
+    int dir;
+    const float gap = 0;//0-0.5 - зазор
+
+    if (snake.dir == RIGHT)  dir = 0;//0,1,2,3 - направление
+    if (snake.dir == UP)  dir = 1;//0,1,2,3 - направление
+    if (snake.dir == LEFT)  dir = 2;//0,1,2,3 - направление
+    if (snake.dir == DOWN)  dir = 3;//0,1,2,3 - направление
+
+    float rotation = M_PI / 2 * dir;
+    float x, y;
+    float step = (2 * M_PI / 16);//шаг и ширина открытия рта
+
+    glBegin(GL_POLYGON);
+    glColor3f(0, 0.8, 0.2);
+    if (snake.mouth) glVertex2f(0.5, 0.5);
+    for (double i = step + rotation; i < 2 * M_PI + rotation; i += step)
+    {
+        x = cos(i) * 0.5 * (1 - gap * 2) + 0.5;
+        y = sin(i) * 0.5 * (1 - gap * 2) + 0.5;
+        glVertex2f(x, y);
+    }
+    if (snake.mouth) glVertex2f(0.5, 0.5);
+    glEnd();
+}
+
+void ShowBody0()
+{
+    const float gap = 0;//0-0.5 - зазор
+    glColor3f(0.5, 0.5, 0);
+    //glVertex2f(0.5, 0.5);
+
+}
+
+void ShowBody(char littera)
+{
+    /*
+    const float gap = 0;//0-0.5 - зазор
+    float x, y;
+    float step = (2 * M_PI / 16);//шаг
+    glBegin(GL_POLYGON);
+    glColor3f(0.5, 0.5, 0);
+    //glVertex2f(0.5, 0.5);
+    for (double i = 0; i < 2 * M_PI; i += step)
+    {
+        x = cos(i) * 0.5 * (1 - gap * 2) + 0.5;
+        y = sin(i) * 0.5 * (1 - gap * 2) + 0.5;
+        glVertex2f(x, y);
+    }
+    glEnd();*/
+    ///////////////SimSnake();
+    for (int i = 1; i < snake.lenght; i++)
+    {
+        glTranslatef(0.21, 1, 0);
+        glScalef(0.15, -0.125, 1);
+        //glScalef(0.142, -0.142, 1);
+        snprintf(str, sizeof str, "%c", littera);
+        //snprintf(str, sizeof str, "%c%c", drawing, 0);
+        print_string(0, 0, str, 1, 0, 0);
+        //print_string(0, 0, str, r, g, 0);
+    }    
+}
+
+void ShowBorder()
+{
+    const float gap = 0;
+    glBegin(GL_QUADS);
+    glColor3f(0.5, 0, 0.5); glVertex2f(gap, gap);
+    glColor3f(0.4, 0, 0.4); glVertex2f(1 - gap, gap);
+    glColor3f(0.5, 0, 0.5); glVertex2f(1 - gap, 1 - gap);
+    glColor3f(0.3, 0, 0.3); glVertex2f(gap, 1 - gap);
+    glEnd();
+}
+
+void ShowApple(char littera)
+{
+    /*
+    float r, g;
+    float var = rand() % 2;
+    if (rand() % 2) { r = 1.0f; g = var; }
+    else { r = var; g = 1.0f; }
+    */
+    glTranslatef(0.2, 0.92, 0);
+    glScalef(0.16, -0.12, 1);
+    //glTranslatef(0.21, 1, 0);
+    //glScalef(0.142, -0.142, 1);
+
+    snprintf(str, sizeof str, "%c", littera);
+    //snprintf(str, sizeof str, "%c%c", drawing, 0);
+    print_string(0, 0, str, 1, 0, 0);
+    //print_string(0, 0, str, r, g, 0);
+}
+
+void ShowApple0() {
+    glBegin(GL_POLYGON);        glColor3f(0.0f, 1.0f, 0.0f);
+    glVertex2f(0.68621f, 1.0f);            glVertex2f(0.647646f, 0.99425f);
+    glVertex2f(0.577895f, 0.968148f);            glVertex2f(0.532538f, 0.936295f);
+    glVertex2f(0.49945f, 0.899834f);            glVertex2f(0.47815f, 0.863372f);
+    glVertex2f(0.466685f, 0.83152f);            glVertex2f(0.460886f, 0.799667f);
+    glVertex2f(0.49945f, 0.805417f);            glVertex2f(0.569201f, 0.83152f);
+    glVertex2f(0.614558f, 0.863372f);            glVertex2f(0.647646f, 0.899834f);
+    glVertex2f(0.668946f, 0.936295f);            glVertex2f(0.680411f, 0.968148f);
+    glEnd();
+    glBegin(GL_POLYGON);        glColor3f(1.0f, 0.0f, 0.0f);
+    glVertex2f(0.5f, 0.756049f);            glVertex2f(0.452958f, 0.7585f);
+    glVertex2f(0.361591f, 0.777858f);            glVertex2f(0.289014f, 0.797216f);
+    glVertex2f(0.25215f, 0.799667f);            glVertex2f(0.215287f, 0.797216f);
+    glVertex2f(0.144644f, 0.777858f);            glVertex2f(0.067679f, 0.726477f);
+    glVertex2f(0.028942f, 0.675095f);            glVertex2f(0.006203f, 0.606557f);
+    glVertex2f(0.0f, 0.517704f);            glVertex2f(0.005338f, 0.435259f);
+    glVertex2f(0.021568f, 0.352814f);            glVertex2f(0.04939f, 0.270369f);
+    glVertex2f(0.086819f, 0.19372f);            glVertex2f(0.137289f, 0.11707f);
+    glVertex2f(0.177281f, 0.06864f);            glVertex2f(0.233331f, 0.02021f);
+    glVertex2f(0.285019f, 0.002451f);            glVertex2f(0.314113f, 0.0f);
+    glVertex2f(0.343207f, 0.002451f);            glVertex2f(0.396312f, 0.02021f);
+    glVertex2f(0.463137f, 0.03797f);            glVertex2f(0.5f, 0.040421f);
+    glVertex2f(0.536863f, 0.03797f);            glVertex2f(0.603688f, 0.02021f);
+    glVertex2f(0.656793f, 0.002451f);            glVertex2f(0.685887f, 0.0f);
+    glVertex2f(0.714981f, 0.002451f);            glVertex2f(0.766669f, 0.02021f);
+    glVertex2f(0.822719f, 0.06864f);            glVertex2f(0.862711f, 0.11707f);
+    glVertex2f(0.913181f, 0.19372f);            glVertex2f(0.95061f, 0.270369f);
+    glVertex2f(0.978432f, 0.352814f);            glVertex2f(0.994662f, 0.435259f);
+    glVertex2f(1.0f, 0.517704f);            glVertex2f(0.993797f, 0.606557f);
+    glVertex2f(0.971058f, 0.675095f);            glVertex2f(0.932321f, 0.726477f);
+    glVertex2f(0.855356f, 0.777858f);
+    glVertex2f(0.784713f, 0.797216f);            glVertex2f(0.74785f, 0.799667f);
+    glVertex2f(0.710986f, 0.797216f);            glVertex2f(0.638409f, 0.777858f);
+    glVertex2f(0.547042f, 0.7585f);    glEnd();
+}
+
+void ShowField()
+{
+    const float gap = 0.04;
+    glBegin(GL_QUADS);
+    glColor3ub(50, 50, 50); glVertex2f(gap, gap);
+    glColor3ub(30, 30, 30); glVertex2f(1 - gap, gap);
+    glColor3ub(50, 50, 50); glVertex2f(1 - gap, 1 - gap);
+    glColor3ub(70, 70, 70); glVertex2f(gap, 1 - gap);
+    glEnd();
+}
+
+void CheckCell(TCell cell, int i, int j)
+{
+    if (j > 0 && j < height - 1 && i > 0 && i < width - 1) ShowField();
+    if (cell.brd) ShowBorder();
+    //if (cell.snk.bd) ShowBody(cell.sym);
+    if (cell.snk.hd) ShowHeader();
+    if (cell.sym != 0) ShowApple(cell.sym);
+}
+
+void Game_Show()
+{
+    glLoadIdentity();
+    glScaled(2.0 / width, 2.0 / height, 1);
+    glTranslatef(-width * 0.5, -height * 0.5, 0);
+
+    for (int j = 0; j < height; j++)
+        for (int i = 0; i < width; i++)
+        {
+            glPushMatrix();
+            glTranslatef(i, j, 0);
+            CheckCell(map[j][i], i, j);
+            glPopMatrix();
+        }
+}
+
+
+void Score()
+{
+    glTranslatef(width / 4 - 2 , (height / 2 + height / 6), 0);
+    glScalef(1, -1, 1);
+    snprintf(str, sizeof str, "%d", snake.lenght - 1);
+    print_string(0, 0, str, 0, 1, 0);
+}
+
+void GameOver()
+{
+    glTranslatef(2, height - 2 - 3, 0);
+    glScalef(0.5, -0.5, 1);
+    snprintf(str, sizeof str, "%s%d", "  GAME\n  OVER!\nSCORE: ", snake.lenght);
+    print_string(0, 0, str, 1, 0, 0);
+
+}
+
+int main(void)
+{
+    srand(time(NULL));
+    Border();
+    PutApple(quant);
+    GLFWwindow* window;
+    if (!glfwInit())
+        return -1;
+    window = glfwCreateWindow(widthWin, heightWin, "SNAKE", NULL, NULL);
+    if (!window)
+    {
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
+
+    while (!glfwWindowShouldClose(window))
+    {
+
+        glfwPollEvents();
+        snake.Control('A', 'D', 'S', 'W');
+        Score();
+        /* Render here */
+        Game_Show();
+
+        Sleep(snake.delay);
+        glfwSwapBuffers(window);
+        glClear(GL_COLOR_BUFFER_BIT);
+        if (breakPlay)
+        {
+            GameOver();
+            glfwSwapBuffers(window);
+            Sleep(7000);
+            break;
+        }
+    }
+    glfwTerminate();
+    return 0;
+}
